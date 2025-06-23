@@ -124,7 +124,7 @@ ${cleanedInput}
       >
         {messages.length === 0 ? (
           <p style={{ textAlign: 'center', color: '#666' }}>
-            Say hi! What do you want to learn about DSA today?
+            Say Hi! What do you want to learn about DSA today?
           </p>
         ) : (
           messages.map((msg, i) => (
