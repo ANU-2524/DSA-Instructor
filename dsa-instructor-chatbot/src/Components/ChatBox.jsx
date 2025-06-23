@@ -58,7 +58,7 @@ ${cleanedInput}
     `;
 
     try {
-      const response = await axios.post('http://localhost:5000/chat', { prompt });
+      const response = await axios.post('https://dsa-instructor.onrender.com/chat', { prompt });
       const botText = response.data.reply || 'Sorry, no response.';
       setMessages([...updatedMessages, { role: 'assistant', text: botText }]);
     } catch (err) {
