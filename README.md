@@ -2,7 +2,7 @@
 
 Welcome to **DSA Instructor**, a smart chatbot designed to help students master **Data Structures and Algorithms (DSA)** with personalized guidance, real-world explanations, and AI-generated answers.
 
-🌐 **Live Site**: [https://onlydsa.netlify.app/](https://onlydsa.netlify.app/)
+🌐 **Live Site**: [Ask from DSA-ChatBot](https://onlydsa.netlify.app/)
 
 ---
 
