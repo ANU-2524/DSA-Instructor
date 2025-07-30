@@ -1,10 +1,6 @@
  
 const express = require('express');
 const cors = require('cors');
-const dotenv = require('dotenv');
-const axios = require('axios');
-
-dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -12,24 +8,11 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-app.post('/chat', async (req, res) => {
-  const { prompt } = req.body;
 
-  if (!prompt) {
-    return res.status(400).json({ error: 'Prompt is required' });
-  }
+const axios = require('axios');
 
-  try {
-    const response = await axios.post(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-      {
-        contents: [
-          {
-            role: 'user',
-            parts: [
-              {
-                text:
-`You are a highly skilled, friendly, and clear Data Structures and Algorithms (DSA) instructor. Your goal is to teach, guide, and mentor students of various levels in understanding core DSA concepts, solving problems, and preparing for technical interviews at top tech companies.
+// System prompt for LLM to act as a DSA instructor
+const SYSTEM_PROMPT = `You are a highly skilled, friendly, and clear Data Structures and Algorithms (DSA) instructor. Your goal is to teach, guide, and mentor students of various levels in understanding core DSA concepts, solving problems, and preparing for technical interviews at top tech companies.
 
 Your Responsibilities:
 - Explain DSA topics with real-world analogies.
@@ -53,30 +36,65 @@ Topics:
 - DP, Greedy, Backtracking
 - Hashing, Sliding Window, Binary Search
 
-Only reply to DSA questions. If something is unrelated, politely say so. 
-Answer the user very directly , whatever user ask for , only provide that , and if user talk about something else , then in very less words , respect what user say and motivates towards so they can concentrate more on studies.
+Only reply to DSA questions. If something is unrelated, politely say No and motivate to focus on DSA. Answer the user very directly, and if user talks about something else, respect what user says and motivate them to concentrate more on studies.`;
 
-User: ${prompt}`
-              }
-            ]
+// POST /chat endpoint for DSA Instructor
+app.post('/chat', async (req, res) => {
+  const { prompt } = req.body;
+  if (!prompt) {
+    return res.status(400).json({ error: 'Prompt is required' });
+  }
+  try {
+    const response = await axios({
+      method: 'post',
+      url: 'http://localhost:11434/api/chat',
+      data: {
+        model: 'llama3',
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user', content: prompt }
+        ]
+      },
+      headers: { 'Content-Type': 'application/json' },
+      responseType: 'stream'
+    });
+
+    let fullReply = '';
+    let buffer = '';
+    response.data.on('data', (chunk) => {
+      buffer += chunk.toString();
+      let lines = buffer.split('\n');
+      buffer = lines.pop(); // last line may be incomplete
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const obj = JSON.parse(line);
+          if (obj.message && obj.message.content) {
+            fullReply += obj.message.content;
           }
-        ],
-        generationConfig: {
-          temperature: 0.7
+        } catch (e) {
+          // ignore parse errors
         }
       }
-    );
-
-    const reply = response.data?.candidates?.[0]?.content?.parts?.[0]?.text || 'No response.';
-    res.status(200).json({ reply });
+    });
+    response.data.on('end', () => {
+      fullReply = fullReply.trim() || 'No response.';
+      res.status(200).json({ reply: fullReply });
+    });
+    response.data.on('error', (err) => {
+      console.error('Ollama stream error:', err);
+      res.status(500).json({ error: 'Error reading Ollama response' });
+    });
   } catch (error) {
-    console.error('Gemini API Error:', error?.response?.data || error.message || error);
-    res.status(500).json({ error: 'Something went wrong with Gemini API' });
+    if (error.response) {
+      console.error('Ollama LLM Error:', JSON.stringify(error.response.data, null, 2));
+    } else {
+      console.error('Ollama LLM Error:', error.message || error);
+    }
+    res.status(500).json({ error: 'Something went wrong with the local LLM (Ollama)' });
   }
 });
 
-
-
-app.listen(PORT, () => { 
+app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });
