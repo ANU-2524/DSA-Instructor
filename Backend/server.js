@@ -10,8 +10,9 @@ app.use(express.json());
 
 
 const axios = require('axios');
+require('dotenv').config();
 
-// System prompt for LLM to act as a DSA instructor
+// System prompt for Gemini LLM
 const SYSTEM_PROMPT = `You are a highly skilled, friendly, and clear Data Structures and Algorithms (DSA) instructor. Your goal is to teach, guide, and mentor students of various levels in understanding core DSA concepts, solving problems, and preparing for technical interviews at top tech companies.
 
 Your Responsibilities:
@@ -35,8 +36,7 @@ Topics:
 - Trees, Graphs, Tries
 - DP, Greedy, Backtracking
 - Hashing, Sliding Window, Binary Search
-
-Only reply to DSA questions. If something is unrelated, politely say No and motivate to focus on DSA. Answer the user very directly, and if user talks about something else, respect what user says and motivate them to concentrate more on studies.`;
+Only reply to DSA questions. If something is unrelated, politely say Nooo and motivate to focus on DSA. Answer the user very directly, and if user talks about something else, respect what user says and motivate them to concentrate more on studies.`;
 
 // POST /chat endpoint for DSA Instructor
 app.post('/chat', async (req, res) => {
@@ -45,53 +45,24 @@ app.post('/chat', async (req, res) => {
     return res.status(400).json({ error: 'Prompt is required' });
   }
   try {
-    const response = await axios({
-      method: 'post',
-      url: 'http://localhost:11434/api/chat',
-      data: {
-        model: 'llama3',
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: prompt }
-        ]
-      },
-      headers: { 'Content-Type': 'application/json' },
-      responseType: 'stream'
+    const apiKey = process.env.GEMINI_API_KEY;
+    const geminiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=' + apiKey;
+    const payload = {
+      contents: [
+        { role: 'user', parts: [ { text: `${SYSTEM_PROMPT}\n\nUser: ${prompt}` } ] }
+      ]
+    };
+    const geminiRes = await axios.post(geminiUrl, payload, {
+      headers: { 'Content-Type': 'application/json' }
     });
-
-    let fullReply = '';
-    let buffer = '';
-    response.data.on('data', (chunk) => {
-      buffer += chunk.toString();
-      let lines = buffer.split('\n');
-      buffer = lines.pop(); // last line may be incomplete
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        try {
-          const obj = JSON.parse(line);
-          if (obj.message && obj.message.content) {
-            fullReply += obj.message.content;
-          }
-        } catch (e) {
-          // ignore parse errors
-        }
-      }
-    });
-    response.data.on('end', () => {
-      fullReply = fullReply.trim() || 'No response.';
-      res.status(200).json({ reply: fullReply });
-    });
-    response.data.on('error', (err) => {
-      console.error('Ollama stream error:', err);
-      res.status(500).json({ error: 'Error reading Ollama response' });
-    });
-  } catch (error) {
-    if (error.response) {
-      console.error('Ollama LLM Error:', JSON.stringify(error.response.data, null, 2));
-    } else {
-      console.error('Ollama LLM Error:', error.message || error);
+    let reply = 'No response.';
+    if (geminiRes.data && geminiRes.data.candidates && geminiRes.data.candidates[0]?.content?.parts[0]?.text) {
+      reply = geminiRes.data.candidates[0].content.parts[0].text;
     }
-    res.status(500).json({ error: 'Something went wrong with the local LLM (Ollama)' });
+    res.status(200).json({ reply });
+  } catch (error) {
+    console.error('Gemini API Error:', error?.response?.data || error.message || error);
+    res.status(500).json({ error: 'Something went wrong with Gemini API' });
   }
 });
 
