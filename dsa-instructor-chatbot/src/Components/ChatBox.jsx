@@ -72,7 +72,7 @@ function ChatBox() {
 
 
   // Always use local backend for Ollama
-  const BACKEND_URL = 'http://localhost:5000/chat';
+  const BACKEND_URL = 'https://dsa-instructor.onrender.com';
 
   // Helper for retrying API call
   const fetchWithRetry = async (data, retries = 2, timeout = 60000) => {
