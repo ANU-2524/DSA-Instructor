@@ -1,15 +1,23 @@
- 
 const express = require('express');
 const cors = require('cors');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// ✅ FIXED: Allow both production and local development origins
 app.use(cors({
-  origin: 'https://onlydsa.netlify.app'
+  origin: [
+    'https://onlydsa.netlify.app',   // Production Netlify URL
+    'http://localhost:5173',         // Vite dev server
+    'http://localhost:5174',         // Alternative Vite port
+    'http://localhost:3000',         // React default port
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
-app.use(express.json());
 
+app.use(express.json());
 
 const axios = require('axios');
 require('dotenv').config();
@@ -48,24 +56,36 @@ app.post('/chat', async (req, res) => {
   }
   try {
     const apiKey = process.env.GEMINI_API_KEY;
-    const geminiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=' + apiKey;
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    
     const payload = {
       contents: [
-        { role: 'user', parts: [ { text: `${SYSTEM_PROMPT}\n\nUser: ${prompt}` } ] }
+        { 
+          role: 'user', 
+          parts: [{ text: `${SYSTEM_PROMPT}\n\nUser: ${prompt}` }] 
+        }
       ]
     };
+    
     const geminiRes = await axios.post(geminiUrl, payload, {
       headers: { 'Content-Type': 'application/json' }
     });
+    
     let reply = 'No response.';
     if (geminiRes.data && geminiRes.data.candidates && geminiRes.data.candidates[0]?.content?.parts[0]?.text) {
       reply = geminiRes.data.candidates[0].content.parts[0].text;
     }
+    
     res.status(200).json({ reply });
   } catch (error) {
     console.error('Gemini API Error:', error?.response?.data || error.message || error);
     res.status(500).json({ error: 'Something went wrong with Gemini API' });
   }
+});
+
+// Health check endpoint
+app.get('/', (req, res) => {
+  res.json({ message: 'DSA Instructor API is running!' });
 });
 
 app.listen(PORT, () => {

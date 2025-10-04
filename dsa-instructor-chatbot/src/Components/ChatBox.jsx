@@ -71,7 +71,6 @@ function ChatBox() {
   };
 
 
-  // Always use local backend for Ollama
   const BACKEND_URL = 'https://dsa-instructor.onrender.com/chat';
 
   // Helper for retrying API call
