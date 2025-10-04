@@ -104,7 +104,7 @@ function ChatBox() {
       const botText = response.data.reply || 'Sorry, no response.';
       setMessages((prev) => [...prev, { role: 'assistant', text: botText }]);
     } catch (err) {
-      console.error('API Error:', err);
+      // console.error('API Error:', err);
       setError('Failed to fetch response from server.');
       setMessages((prev) => [
         ...prev,
