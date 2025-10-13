@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect, useRef } from 'react';
-import axios from 'axios';
+import { Send, Trash2, Sun, Moon, Code2, Lightbulb, Sparkles } from 'lucide-react';
 import './ChatBox.css';
 
 const DSA_TIPS = [
@@ -21,76 +20,47 @@ function getTipOfDay() {
   return DSA_TIPS[day % DSA_TIPS.length];
 }
 
-function ChatBox() {
-  // Light/Dark mode state
-  const [darkMode, setDarkMode] = useState(() => {
-    return localStorage.getItem('dsaDarkMode') === 'true';
-  });
+// Demo mode responses for fallback
+const getDemoResponse = (input) => {
+  const lower = input.toLowerCase();
+  if (lower.includes('binary search')) {
+    return "Binary Search is an efficient algorithm for finding an element in a sorted array. Think of it like finding a word in a dictionary - you don't start from page 1!\n\n**How it works:**\n1. Start at the middle element\n2. If target equals middle, you're done!\n3. If target < middle, search left half\n4. If target > middle, search right half\n5. Repeat until found or exhausted\n\n**Time Complexity:** O(log n)\n**Space Complexity:** O(1) iterative, O(log n) recursive\n\nWant to see code implementation?";
+  }
+  if (lower.includes('time complexity')) {
+    return "Time Complexity measures how runtime grows with input size.\n\n**Common complexities:**\n- O(1): Constant - array access\n- O(log n): Logarithmic - binary search\n- O(n): Linear - single loop\n- O(n log n): Linearithmic - merge sort\n- O(n²): Quadratic - nested loops\n- O(2ⁿ): Exponential - recursive fibonacci\n\nFocus on the dominant term and drop constants!";
+  }
+  if (lower.includes('hello') || lower.includes('hi')) {
+    return "Hello! 👋 I'm your DSA Instructor. I'm here to help you master Data Structures and Algorithms!\n\nYou can ask me about:\n- Algorithms (sorting, searching, graph algorithms)\n- Data structures (arrays, trees, graphs, heaps)\n- Problem-solving strategies\n- Time/space complexity analysis\n- Interview preparation tips\n\nWhat would you like to learn today?";
+  }
+  return "Great question! As your DSA instructor, I'd love to help you understand this concept better. In a production environment, I'm powered by Google's Gemini AI to give you detailed, personalized explanations.\n\nFor now, try asking me about:\n- Binary Search\n- Time Complexity\n- Or just say Hello!";
+};
 
-  useEffect(() => {
-    if (darkMode) {
-      document.body.classList.add('dark-mode');
-      document.documentElement.classList.add('dark-mode');
-    } else {
-      document.body.classList.remove('dark-mode');
-      document.documentElement.classList.remove('dark-mode');
-    }
-    localStorage.setItem('dsaDarkMode', darkMode);
-  }, [darkMode]);
-  const [messages, setMessages] = useState(() => {
-    const saved = localStorage.getItem('chatMessages');
-    return saved ? JSON.parse(saved) : [];
-  });
+function ChatBox() {
+  const [darkMode, setDarkMode] = useState(false);
+  const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
-  const [memory, setMemory] = useState(() => {
-    const saved = localStorage.getItem('chatMemory');
-    return saved ? JSON.parse(saved) : { name: '', goal: '' };
-  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const chatContainerRef = useRef(null);
+  const inputRef = useRef(null);
 
   useEffect(() => {
-    localStorage.setItem('chatMessages', JSON.stringify(messages));
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
   }, [messages]);
 
   useEffect(() => {
-    localStorage.setItem('chatMemory', JSON.stringify(memory));
-  }, [memory]);
-
-  const updateMemoryFromInput = (text) => {
-    const nameMatch = text.match(/my name is\s+(.+)/i);
-    const goalMatch = text.match(/i want to learn\s+(.+)/i);
-    setMemory((prev) => ({
-      name: nameMatch ? nameMatch[1].split(' ')[0] : prev.name,
-      goal: goalMatch ? goalMatch[1] : prev.goal,
-    }));
-  };
-
-
-  const BACKEND_URL = 'https://dsa-instructor.onrender.com/chat';
-
-  // Helper for retrying API call
-  const fetchWithRetry = async (data, retries = 2, timeout = 60000) => {
-    for (let i = 0; i <= retries; i++) {
-      try {
-        const source = axios.CancelToken.source();
-        const timer = setTimeout(() => source.cancel('Request timeout'), timeout);
-        const response = await axios.post(BACKEND_URL, data, { cancelToken: source.token });
-        clearTimeout(timer);
-        return response;
-      } catch (err) {
-        if (axios.isCancel(err)) throw err;
-        if (i === retries) throw err;
-      }
+    if (!loading && inputRef.current) {
+      inputRef.current.focus();
     }
-  };
+  }, [loading]);
+
+  const BACKEND_URL = 'http://localhost:5000/chat';
 
   const handleSend = async () => {
     if (!input.trim() || loading) return;
+    
     setLoading(true);
     setError(null);
     const cleanedInput = input.trim();
@@ -98,18 +68,38 @@ function ChatBox() {
     const updatedMessages = [...messages, userMessage];
     setMessages(updatedMessages);
     setInput('');
-    updateMemoryFromInput(cleanedInput);
+
     try {
-      const response = await fetchWithRetry({ prompt: cleanedInput });
-      const botText = response.data.reply || 'Sorry, no response.';
-      setMessages((prev) => [...prev, { role: 'assistant', text: botText }]);
+      // Try real API first with timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+      const response = await fetch(BACKEND_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          prompt: cleanedInput,
+          history: updatedMessages.slice(-6) // Send last 3 exchanges for context
+        }),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) throw new Error('API request failed');
+      
+      const data = await response.json();
+      const botText = data.reply || 'Sorry, no response.';
+      setMessages(prev => [...prev, { role: 'assistant', text: botText }]);
     } catch (err) {
-      // console.error('API Error:', err);
-      setError('Failed to fetch response from server.');
-      setMessages((prev) => [
-        ...prev,
-        { role: 'assistant', text: 'Failed to fetch response from server.' },
-      ]);
+      // Fallback to demo mode if API fails
+      console.log('Using demo mode');
+      setTimeout(() => {
+        const demoResponse = getDemoResponse(cleanedInput);
+        setMessages(prev => [...prev, { role: 'assistant', text: demoResponse }]);
+        setLoading(false);
+      }, 800);
+      return;
     } finally {
       setLoading(false);
     }
@@ -117,72 +107,122 @@ function ChatBox() {
 
   const handleClearChat = () => {
     setMessages([]);
-    setMemory({ name: '', goal: '' });
-    localStorage.removeItem('chatMessages');
-    localStorage.removeItem('chatMemory');
     setError(null);
+    if (inputRef.current) inputRef.current.focus();
   };
 
   return (
-    <>
-      {/* Animated creative background */}
-      <div className="dsa-bg-animated">
-        <div className="dsa-bg-shape dsa-bg-shape1"></div>
-        <div className="dsa-bg-shape dsa-bg-shape2"></div>
-        <div className="dsa-bg-shape dsa-bg-shape3"></div>
-        <div className="dsa-bg-shape dsa-bg-shape4"></div>
+    <div className={`chat-wrapper ${darkMode ? 'dark-mode' : ''}`}>
+      {/* Floating background elements */}
+      <div className="background-shapes">
+        <div className="shape shape-1"></div>
+        <div className="shape shape-2"></div>
       </div>
-      <div className="dsa-chat-bg">
-        <div className="dsa-chat-container">
-          <div className="dsa-chat-header">
-            <div className="dsa-chat-title">DSA Instructor <span role="img" aria-label="motivation"></span></div>
-            <div className="dsa-chat-motivation">"Every great coder was once a beginner. Let's level up your DSA skills together!"</div>
-            <button className="dsa-clear-btn" onClick={handleClearChat}>Clear Chat</button>
-            <button
-              className="dsa-clear-btn"
-              style={{ right: 140, background: darkMode ? '#6366f1' : '#18181b', color: '#fff' }}
-              onClick={() => setDarkMode((d) => !d)}
-              title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-            >
-              {darkMode ? '☀️ Light' : '🌙 Dark'}
-            </button>
-          </div>
-          <div className="dsa-chat-messages" ref={chatContainerRef}>
-            {messages.length === 0 ? (
-              <div className="dsa-chat-empty">Say Hi! What do you want to learn about DSA today?</div>
-            ) : (
-              messages.map((msg, i) => (
-                <div key={i} className={`dsa-chat-bubble-row ${msg.role === 'user' ? 'right' : 'left'}`}>
-                  {msg.role === 'assistant' && (
-                    <div className="dsa-avatar dsa-avatar-bot" title="DSA Instructor">🧑‍🏫</div>
-                  )}
-                  <div className={`dsa-chat-bubble ${msg.role}`}>{msg.text}</div>
-                  {msg.role === 'user' && (
-                    <div className="dsa-avatar dsa-avatar-user" title="You">🧑‍💻</div>
-                  )}
-                </div>
-              ))
-            )}
-            {loading && (
-              <div className="dsa-chat-bubble-row left">
-                <div className="dsa-avatar dsa-avatar-bot">🧑‍🏫</div>
-                <div className="dsa-chat-bubble assistant dsa-typing">
-                  <span className="dsa-typing-dots">
-                    <span>.</span><span>.</span><span>.</span>
-                  </span>
-                  Thinking...
-                </div>
+
+      <div className="chat-container">
+        {/* Header */}
+        <div className="chat-header">
+          <div className="header-content">
+            <div className="header-left">
+              <div className="header-icon">
+                <Code2 className="icon" />
               </div>
-            )}
-            {error && (
-              <div className="dsa-chat-error">{error}</div>
-            )}
+              <div className="header-text">
+                <h1 className="header-title">
+                  DSA Instructor
+                  <Sparkles className="sparkle-icon" />
+                </h1>
+                <p className="header-subtitle">Your AI Learning Companion</p>
+              </div>
+            </div>
+            
+            <div className="header-actions">
+              <button
+                onClick={() => setDarkMode(!darkMode)}
+                className="icon-button theme-toggle"
+                title={darkMode ? 'Light mode' : 'Dark mode'}
+              >
+                {darkMode ? <Sun className="icon" /> : <Moon className="icon" />}
+              </button>
+              <button
+                onClick={handleClearChat}
+                className="icon-button clear-button"
+                title="Clear chat"
+              >
+                <Trash2 className="icon" />
+              </button>
+            </div>
           </div>
-          <div className="dsa-chat-input-row">
+          
+          <p className="header-motto">
+            "Every great coder was once a beginner. Let's level up together!"
+          </p>
+        </div>
+
+        {/* Chat Messages */}
+        <div ref={chatContainerRef} className="chat-messages">
+          {messages.length === 0 ? (
+            <div className="empty-state">
+              <div className="welcome-card">
+                <Code2 className="welcome-icon" />
+                <h3 className="welcome-title">Welcome to DSA Instructor!</h3>
+                <p className="welcome-text">
+                  Ask me anything about Data Structures & Algorithms. I'm here to help you learn and grow!
+                </p>
+              </div>
+              
+              <div className="suggestions-grid">
+                {['Explain Binary Search', 'What is Time Complexity?', 'Best sorting algorithm?', 'Graph traversal methods'].map((suggestion, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setInput(suggestion)}
+                    className="suggestion-button"
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <>
+              {messages.map((msg, i) => (
+                <div key={i} className={`message-row ${msg.role}`}>
+                  <div className="message-avatar">
+                    {msg.role === 'user' ? '👤' : '🧑‍🏫'}
+                  </div>
+                  
+                  <div className="message-bubble">
+                    {msg.text}
+                  </div>
+                </div>
+              ))}
+              
+              {loading && (
+                <div className="message-row assistant">
+                  <div className="message-avatar">🧑‍🏫</div>
+                  <div className="message-bubble loading">
+                    <div className="loading-dots">
+                      <div className="dot"></div>
+                      <div className="dot"></div>
+                      <div className="dot"></div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {error && (
+                <div className="error-message">{error}</div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Input Area */}
+        <div className="chat-input-area">
+          <div className="input-row">
             <input
+              ref={inputRef}
               type="text"
-              className="dsa-chat-input"
-              placeholder="Ask your DSA question..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
@@ -191,23 +231,31 @@ function ChatBox() {
                   handleSend();
                 }
               }}
+              placeholder="Ask your DSA question..."
               disabled={loading}
+              className="chat-input"
             />
             <button
-              className="dsa-send-btn"
               onClick={handleSend}
-              disabled={loading}
+              disabled={loading || !input.trim()}
+              className="send-button"
             >
-              {loading ? 'Sending...' : 'Send'}
+              <Send className="icon" />
+              <span className="button-text">Send</span>
             </button>
           </div>
-          <div className="dsa-footer">
-            <span className="dsa-tip-icon" role="img" aria-label="tip">💡</span>
-            <span><b>DSA Tip of the Day:</b> {getTipOfDay()}</span>
+          
+          {/* Tip of the Day */}
+          <div className="tip-container">
+            <Lightbulb className="tip-icon" />
+            <div className="tip-content">
+              <p className="tip-label">DSA Tip of the Day</p>
+              <p className="tip-text">{getTipOfDay()}</p>
+            </div>
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }
 
