@@ -75,7 +75,7 @@ app.post('/chat', async (req, res) => {
   }
 
   try {
-    const apiKey = process.env.GEMINI_API_KEY || 'AIzaSyBhy1NJj_y93JmB3Mu4iFR6eqmcdROo2Ck';
+    const apiKey = process.env.GEMINI_API_KEY;
     console.log('API Key exists:', !!apiKey);
     console.log('API Key length:', apiKey?.length || 0);
     
